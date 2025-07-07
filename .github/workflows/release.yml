@@ -1,0 +1,107 @@
+name: 🏷️ Auto Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to release (e.g., v1.0.1)'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+
+jobs:
+  create-release:
+    name: 🏷️ Create Release
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: 📥 Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          
+      - name: 🏷️ Get Version
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            VERSION="${{ github.event.inputs.version }}"
+          else
+            VERSION=${GITHUB_REF#refs/tags/}
+          fi
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "🏷️ Version: $VERSION"
+          
+      - name: 📝 Generate Changelog
+        id: changelog
+        run: |
+          echo "📝 Generating changelog..."
+          
+          # Criar changelog básico
+          cat > RELEASE_NOTES.md << 'EOF'
+          ## 🎉 System Cleaner ${{ steps.version.outputs.version }}
+          
+          ### ✨ Funcionalidades
+          - 🐧 **Script Linux**: Compatível com múltiplas distribuições
+          - 🪟 **Script Windows**: PowerShell com verificação de admin
+          - 🌐 **Site Moderno**: Interface responsiva com modo escuro
+          - 📊 **3 Níveis de Limpeza**: Leve, Média, Profunda
+          - 📝 **Logs Detalhados**: Sistema completo de logging
+          - ⏰ **Automação**: Compatível com cron e Task Scheduler
+          
+          ### 🚀 Instalação Rápida
+          
+          #### Linux
+          ```bash
+          wget https://github.com/${{ github.repository }}/releases/download/${{ steps.version.outputs.version }}/linux-cleaner.sh
+          chmod +x linux-cleaner.sh && ./linux-cleaner.sh --media
+          ```
+          
+          #### Windows (PowerShell como Admin)
+          ```powershell
+          iwr "https://github.com/${{ github.repository }}/releases/download/${{ steps.version.outputs.version }}/windows-cleaner.ps1" -OutFile "windows-cleaner.ps1"
+          .\windows-cleaner.ps1 -Mode media
+          ```
+          
+          ### 📊 Estatísticas
+          - **Tamanho Linux Script**: $(stat -c%s linux-cleaner.sh | numfmt --to=iec)
+          - **Tamanho Windows Script**: $(stat -c%s windows-cleaner.ps1 | numfmt --to=iec)
+          - **Linhas de Código**: $(wc -l *.sh *.ps1 | tail -1 | awk '{print $1}')
+          
+          ### 🔒 Checksums
+          ```
+          $(sha256sum linux-cleaner.sh)
+          $(sha256sum windows-cleaner.ps1)
+          ```
+          
+          ---
+          **⚡ Mantenha seu sistema sempre otimizado!**
+          EOF
+          
+          echo "✅ Changelog generated"
+          
+      - name: 🏷️ Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ steps.version.outputs.version }}
+          name: 🧹 System Cleaner ${{ steps.version.outputs.version }}
+          body_path: RELEASE_NOTES.md
+          files: |
+            linux-cleaner.sh
+            windows-cleaner.ps1
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          
+      - name: 📢 Release Created
+        run: |
+          echo "🎉 Release ${{ steps.version.outputs.version }} created successfully!"
+          echo "🔗 URL: https://github.com/${{ github.repository }}/releases/tag/${{ steps.version.outputs.version }}"

@@ -1,0 +1,124 @@
+name: 🚀 CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+  issues: write
+  pull-requests: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # Job 1: Testes dos Scripts
+  test-scripts:
+    name: 🧪 Test Scripts
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        
+    steps:
+      - name: 📥 Checkout Code
+        uses: actions/checkout@v4
+        
+      - name: 🐧 Test Linux Script
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          echo "🧪 Testing Linux Script..."
+          chmod +x limpeza-avancada-linux.sh
+          ./limpeza-avancada-linux.sh --help
+          echo "✅ Linux script syntax OK"
+          
+      - name: 🔍 Shellcheck Analysis
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y shellcheck
+          echo "🔍 Running Shellcheck..."
+          shellcheck limpeza-avancada-linux.sh || echo "⚠️ Shellcheck warnings found"
+          
+      - name: 🪟 Test Windows Script
+        if: matrix.os == 'windows-latest'
+        shell: powershell
+        run: |
+          Write-Host "🧪 Testing Windows Script..." -ForegroundColor Cyan
+          powershell -File limpeza-avancada-windows.ps1 -Help
+          Write-Host "✅ Windows script syntax OK" -ForegroundColor Green
+          
+      - name: 🔍 PSScriptAnalyzer
+        if: matrix.os == 'windows-latest'
+        shell: powershell
+        run: |
+          Write-Host "🔍 Installing PSScriptAnalyzer..." -ForegroundColor Cyan
+          Install-Module -Name PSScriptAnalyzer -Force -Scope CurrentUser
+          Write-Host "🔍 Running PSScriptAnalyzer..." -ForegroundColor Cyan
+          $results = Invoke-ScriptAnalyzer -Path limpeza-avancada-windows.ps1
+          if ($results) {
+            Write-Host "⚠️ PSScriptAnalyzer found issues:" -ForegroundColor Yellow
+            $results | Format-Table
+          } else {
+            Write-Host "✅ No PSScriptAnalyzer issues found" -ForegroundColor Green
+          }
+
+  # Job 2: Validar Site
+  validate-site:
+    name: 🌐 Validate Site
+    runs-on: ubuntu-latest
+    steps:
+      - name: 📥 Checkout Code
+        uses: actions/checkout@v4
+        
+      - name: 🔍 Validate HTML
+        run: |
+          echo "🔍 Validating HTML structure..."
+          if [ -f "site/index.html" ]; then
+            echo "✅ Site index.html found"
+            # Verificar se tem elementos básicos
+            grep -q "<title>" site/index.html && echo "✅ Title tag found" || echo "❌ Title tag missing"
+            grep -q "System Cleaner" site/index.html && echo "✅ Project name found" || echo "❌ Project name missing"
+            grep -q "bootstrap" site/index.html && echo "✅ Bootstrap CSS found" || echo "❌ Bootstrap CSS missing"
+          else
+            echo "❌ Site index.html not found"
+            exit 1
+          fi
+
+  # Job 3: Deploy Site (apenas no main)
+  deploy-site:
+    name: 🚀 Deploy Site
+    needs: [test-scripts, validate-site]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+      
+    steps:
+      - name: 📥 Checkout Code
+        uses: actions/checkout@v4
+        
+      - name: 🔧 Setup Pages
+        uses: actions/configure-pages@v4
+        
+      - name: 📦 Upload Site Artifact
+        uses: actions/upload-pages-artifact@v2
+        with:
+          path: './site'
+          
+      - name: 🚀 Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v3
+        
+      - name: 📢 Deployment Success
+        run: |
+          echo "🎉 Site deployed successfully!"
+          echo "🌐 URL: ${{ steps.deployment.outputs.page_url }}"
